@@ -26,14 +26,21 @@ PIXI.loader
 let state, player;
 let walls;
 let enemies;
+let gameScene = new PIXI.Container();
+let gameOverScene = new PIXI.Container();
+let style = new PIXI.TextStyle({
+  fontFamily: "Futura",
+  fontSize: 64,
+  fill: "white"
+});
 //This `setup` function will run when the image has loaded
 function setup() {
   //map
   let map = new PIXI.Sprite(PIXI.loader.resources["images/map.png"].texture);
-  app.stage.addChild(map);
+  gameScene.addChild(map);
   //player
   player = new PIXI.Sprite(PIXI.loader.resources["images/player1.png"].texture);
-  app.stage.addChild(player);
+  gameScene.addChild(player);
   player.x = 64;
   player.y = 64;
   player.id = 1;
@@ -43,9 +50,19 @@ function setup() {
   //game
   scale = scaleToWindow(app.renderer.view);
   state = play;
+  //gameover
+  let message = new PIXI.Text("GAME OVER", style);
+  message.x = 960 / 2 - (message.width / 2);
+  message.y = 960 / 2;
+  console.log(message.x);
+  gameOverScene.addChild(message);
+  gameOverScene.visible = false;
+  app.stage.addChild(gameOverScene);
+
   setupMapWalls("walls.json").then(() => {
     //enemies
     setupEnemies(4);
+    app.stage.addChild(gameScene);
     app.ticker.add(delta => gameLoop(delta));
   });
 
@@ -55,14 +72,21 @@ function gameLoop(delta){
   state(delta);
 }
 
+// ###### Game States
+
 function play(delta) {
-  
   movePlayer();
   moveEnemies("DREAM");
   if (isTouchingEnemies(player)) {
-    console.log("LOSE!");
+    state = lose
   }
 }
+
+function lose() {
+  gameScene.visible = false;
+  gameOverScene.visible = true;
+}
+
 /* MAP */
 
 /** Set up map walls for collision detection from json file 
@@ -142,7 +166,7 @@ function setupEnemies(num_enemies) {
     e.random = Math.random();
     e.id = i + 100;
     enemies.push(e);
-    app.stage.addChild(e);
+    gameScene.addChild(e);
   }
 }
 
