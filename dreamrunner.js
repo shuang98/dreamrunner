@@ -19,11 +19,12 @@ document.body.appendChild(app.view);
 PIXI.loader
   .add("images/map.png")
   .add("images/player1.png")
+  .add("images/player2.png")
   .add("images/enemy.png")
   .add("images/rem.png")
   .load(setup);
 
-let state, player;
+let state, player, player2;
 let walls;
 let enemies;
 let remMap, nremMap;
@@ -31,6 +32,7 @@ let gameScene = new PIXI.Container();
 let gameOverScene = new PIXI.Container();
 let startMenuScene = new PIXI.Container();
 let finish = new PIXI.Graphics();
+let dream_mode = "DREAM";
 //This `setup` function will run when the image has loaded
 function setup() {
   // remMap.visible = false;
@@ -60,19 +62,28 @@ function gameLoop(delta){
 let dream_state;
 function play(delta) {
   movePlayer();
+  if (dream_mode == "COLLECTIVE") {
+    movePlayer2();
+  }
   if (dream_state == "REM") {
-    moveEnemies("DREAM");
-    if (isTouchingEnemies(player)) {
+    moveEnemies(dream_mode);
+    if (dream_mode != "LUCID" && (isTouchingEnemies(player) || (dream_mode == "COLLECTIVE" && isTouchingEnemies(player2)))) {
       setupGameOverScene(false);
       deleteEntities();
       state = end;
       closePlayerMovement();
+      if (dream_mode == "COLLECTIVE") {
+        closePlayerMovement2();
+      }
     }
-    if (isTouching(player, finish)) {
+    if (isTouching(player, finish) && (dream_mode != "COLLECTIVE" || isTouching(player2, finish))) {
       setupGameOverScene(true);
       deleteEntities();
       state = end;
       closePlayerMovement();
+      if (dream_mode == "COLLECTIVE") {
+        closePlayerMovement2();
+      }
     }
   }
 }
@@ -88,9 +99,12 @@ function startMenu() {
   gameOverScene.visible = false;
 }
 
-function setupGameScene() {
+function setupGameScene(mode) {
   remMap.visible = false;
   nremMap.visible = true;
+  if (mode == "COLLECTIVE") {
+    setupPlayer2();
+  }
   setupPlayer();
   setupEnemies(8);
   dream_state = "NREM";
@@ -136,14 +150,33 @@ function setupStartMenu() {
   title.x = 960 / 2 - (title.width / 2);
   title.y = 960 / 4;
   startMenuScene.addChild(title);
-  let startKey = keyboard("Enter");
-  startKey.release = ()=>{
-    startMenuScene.visible = false;
-    gameScene.visible = true;
-    setupGameScene();
-    startKey.unsubscribe();
-    state = play;
+  let menu_msg = "Press ENTER for DREAM\n" +
+                 "Press N for NIGHTMARE\n" +
+                 "Press L for LUCID\n" +
+                 "Press C for COLLECTIVE\n"; 
+  let msg = new PIXI.Text(menu_msg, {...style, fontSize: 20});
+  startMenuScene.addChild(msg);
+  let dreamKey = keyboard("Enter"),
+      nightmareKey = keyboard("n"),
+      lucidKey = keyboard("l"),
+      collectiveKey = keyboard("c");
+  function handler(mode) {
+    return ()=>{
+      startMenuScene.visible = false;
+      gameScene.visible = true;
+      dream_mode = mode;
+      setupGameScene(mode);
+      dreamKey.unsubscribe();
+      nightmareKey.unsubscribe();
+      lucidKey.unsubscribe();
+      collectiveKey.unsubscribe();
+      state = play;
+    }
   }
+  dreamKey.release = handler("DREAM");
+  nightmareKey.release = handler("NIGHTMARE");
+  lucidKey.release = handler("LUCID");
+  collectiveKey.release = handler("COLLECTIVE")
   app.stage.addChild(startMenuScene);
 }
 
@@ -201,6 +234,7 @@ function deleteEntities() {
     gameScene.removeChild(e);
   });
   gameScene.removeChild(player);
+  gameScene.removeChild(player2);
 }
 
 /* PLAYER */
@@ -249,7 +283,24 @@ function movePlayer() {
     }
   }
 }
-let closePlayerMovement;
+function movePlayer2() {
+  let oldx = player2.x;
+  let oldy = player2.y;
+  player2.x += player2.vx;
+  player2.y += player2.vy;
+  if (isTouchingWalls(player2)) {
+    player2.x = oldx;
+    if (isTouchingWalls(player2)) {
+      player2.y = oldy;
+      player2.x += player2.vx;
+      if (isTouchingWalls(player2)) {
+        player2.x = oldx;
+        player2.y = oldy;
+      }
+    }
+  }
+}
+let closePlayerMovement, closePlayerMovement2;
 
 function setupPlayer() {
   player = new PIXI.Sprite(PIXI.loader.resources["images/player1.png"].texture);
@@ -260,6 +311,17 @@ function setupPlayer() {
   }
   player.id = 1;
   closePlayerMovement = setupMovement("ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown", player);
+}
+
+function setupPlayer2() {
+  player2 = new PIXI.Sprite(PIXI.loader.resources["images/player2.png"].texture);
+  gameScene.addChild(player2);
+  while (isTouchingWalls(player2)) {
+    player2.x = Math.floor(Math.random() * 928);
+    player2.y = Math.floor(Math.random() * 928);
+  }
+  player2.id = 2;
+  closePlayerMovement2 = setupMovement("a", "w", "d", "s", player2);
 }
 
 // ######## ENEMY ###################
@@ -293,7 +355,7 @@ function isTouchingEnemies(sprite) {
 
 function moveEnemies(mode) {
   enemies.forEach(enemy => {
-    if (mode == "DREAM") {
+    if (mode == "DREAM" || mode == "COLLECTIVE") {
       if (enemy.random > 0.5) {
         enemy.vx = ENEMY_SPEED * enemy.direction;
         enemy.x += enemy.vx;
