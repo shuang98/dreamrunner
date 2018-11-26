@@ -2,7 +2,6 @@
 
 var music = document.getElementById("music"); 
 music.loop = true;
-music.play();
 
 let app = new PIXI.Application({ 
     width: 960, 
@@ -169,6 +168,7 @@ function setupStartMenu() {
       startMenuScene.visible = false;
       gameScene.visible = true;
       dream_mode = mode;
+      music.play();
       setupGameScene(mode);
       dreamKey.unsubscribe();
       nightmareKey.unsubscribe();
