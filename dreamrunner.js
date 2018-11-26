@@ -20,48 +20,32 @@ PIXI.loader
   .add("images/map.png")
   .add("images/player1.png")
   .add("images/enemy.png")
+  .add("images/rem.png")
   .load(setup);
-
 
 let state, player;
 let walls;
 let enemies;
+let remMap, nremMap;
 let gameScene = new PIXI.Container();
 let gameOverScene = new PIXI.Container();
-let style = new PIXI.TextStyle({
-  fontFamily: "Futura",
-  fontSize: 64,
-  fill: "white"
-});
+let startMenuScene = new PIXI.Container();
+let finish = new PIXI.Graphics();
 //This `setup` function will run when the image has loaded
 function setup() {
-  //map
-  let map = new PIXI.Sprite(PIXI.loader.resources["images/map.png"].texture);
-  gameScene.addChild(map);
-  //player
-  player = new PIXI.Sprite(PIXI.loader.resources["images/player1.png"].texture);
-  gameScene.addChild(player);
-  player.x = 64;
-  player.y = 64;
-  player.id = 1;
-  setupMovement("ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown", player);
-
-  
+  // remMap.visible = false;
+  remMap = new PIXI.Sprite(PIXI.loader.resources["images/rem.png"].texture);
+  nremMap = new PIXI.Sprite(PIXI.loader.resources["images/map.png"].texture);
+  remMap.visible = false;
+  gameScene.addChild(remMap);
+  gameScene.addChild(nremMap);
   //game
   scale = scaleToWindow(app.renderer.view);
-  state = play;
-  //gameover
-  let message = new PIXI.Text("GAME OVER", style);
-  message.x = 960 / 2 - (message.width / 2);
-  message.y = 960 / 2;
-  console.log(message.x);
-  gameOverScene.addChild(message);
-  gameOverScene.visible = false;
-  app.stage.addChild(gameOverScene);
+  state = startMenu;
+  //startMenu
+  setupStartMenu();
 
   setupMapWalls("walls.json").then(() => {
-    //enemies
-    setupEnemies(4);
     app.stage.addChild(gameScene);
     app.ticker.add(delta => gameLoop(delta));
   });
@@ -73,18 +57,121 @@ function gameLoop(delta){
 }
 
 // ###### Game States
-
+let dream_state;
 function play(delta) {
   movePlayer();
-  moveEnemies("DREAM");
-  if (isTouchingEnemies(player)) {
-    state = lose
+  if (dream_state == "REM") {
+    moveEnemies("DREAM");
+    if (isTouchingEnemies(player)) {
+      setupGameOverScene(false);
+      deleteEntities();
+      state = end;
+      closePlayerMovement();
+    }
+    if (isTouching(player, finish)) {
+      setupGameOverScene(true);
+      deleteEntities();
+      state = end;
+      closePlayerMovement();
+    }
   }
 }
 
-function lose() {
+function end() {
   gameScene.visible = false;
   gameOverScene.visible = true;
+}
+
+function startMenu() {
+  startMenuScene.visible = true;
+  gameScene.visible = false;
+  gameOverScene.visible = false;
+}
+
+function setupGameScene() {
+  remMap.visible = false;
+  nremMap.visible = true;
+  setupPlayer();
+  setupEnemies(8);
+  dream_state = "NREM";
+  let style = new PIXI.TextStyle({
+    fontFamily: "Futura",
+    fontSize: 32,
+    fill: "white"
+  });
+  let title = new PIXI.Text("NREM: Press P to enter REM", style);
+  title.x = 960 / 2 - (title.width / 2);
+  title.y = 960 / 4;
+  let remKey = keyboard("p");
+  remKey.press = ()=>{
+    dream_state = "REM";
+    gameScene.removeChild(title);
+    setupFinish();
+    remMap.visible = true;
+    nremMap.visible = false;
+    remKey.unsubscribe();
+  }
+  gameScene.addChild(title);
+}
+function setupFinish() {
+  finish.lineStyle(4, 0xFF3300, 1);
+  finish.beginFill(0x66CCFF);
+  finish.drawRect(0, 0, 32, 32);
+  finish.endFill();
+  while (isTouchingWalls(finish)) {
+    finish.x = Math.floor(Math.random() * 928);
+    finish.y = Math.floor(Math.random() * 928);
+  }
+  gameScene.addChild(finish);
+}
+
+// #### START MENU ####
+function setupStartMenu() {
+  let style = new PIXI.TextStyle({
+    fontFamily: "Futura",
+    fontSize: 64,
+    fill: "white"
+  });
+  let title = new PIXI.Text("DREAM RUNNER", style);
+  title.x = 960 / 2 - (title.width / 2);
+  title.y = 960 / 4;
+  startMenuScene.addChild(title);
+  let startKey = keyboard("Enter");
+  startKey.release = ()=>{
+    startMenuScene.visible = false;
+    gameScene.visible = true;
+    setupGameScene();
+    startKey.unsubscribe();
+    state = play;
+  }
+  app.stage.addChild(startMenuScene);
+}
+
+function setupGameOverScene(win) {
+  let style = new PIXI.TextStyle({
+    fontFamily: "Futura",
+    fontSize: 64,
+    fill: "white"
+  });
+  let t = "FAILED! BAD SLEEP.";
+  if (win) {
+    t = "NICE! GOOD SLEEP.";
+  }
+  let message = new PIXI.Text(t, style);
+  message.x = 960 / 2 - (message.width / 2);
+  message.y = 960 / 2;
+  gameOverScene.addChild(message);
+  gameOverScene.visible = false;
+  let returnKey = keyboard("r");
+  returnKey.release = ()=>{
+    gameOverScene.visible = false;
+    startMenuScene.visible = false;
+    gameOverScene.removeChild(message);
+    setupStartMenu();
+    returnKey.unsubscribe();
+    state = startMenu;
+  }
+  app.stage.addChild(gameOverScene);
 }
 
 /* MAP */
@@ -108,6 +195,14 @@ function isTouchingWalls(sprite) {
   return i < walls.length;
 }
 
+function deleteEntities() {
+  gameScene.removeChild(finish);
+  enemies.forEach(e => {
+    gameScene.removeChild(e);
+  });
+  gameScene.removeChild(player);
+}
+
 /* PLAYER */
 const PLAYER_SPEED = 4;
 
@@ -129,6 +224,12 @@ function setupMovement(leftKey, upKey, rightKey, downKey, sprite) {
   right.release = () => {sprite.vx -= PLAYER_SPEED;};
   down.press = () => {sprite.vy += PLAYER_SPEED;};
   down.release = () => {sprite.vy -= PLAYER_SPEED;};
+  return ()=>{
+    left.unsubscribe();
+    right.unsubscribe();
+    up.unsubscribe();
+    down.unsubscribe();
+  }
 }
 
 function movePlayer() {
@@ -148,6 +249,18 @@ function movePlayer() {
     }
   }
 }
+let closePlayerMovement;
+
+function setupPlayer() {
+  player = new PIXI.Sprite(PIXI.loader.resources["images/player1.png"].texture);
+  gameScene.addChild(player);
+  while (isTouchingWalls(player)) {
+    player.x = Math.floor(Math.random() * 928);
+    player.y = Math.floor(Math.random() * 928);
+  }
+  player.id = 1;
+  closePlayerMovement = setupMovement("ArrowLeft", "ArrowUp", "ArrowRight", "ArrowDown", player);
+}
 
 // ######## ENEMY ###################
 let ENEMY_SPEED = 4;
@@ -156,7 +269,7 @@ function setupEnemies(num_enemies) {
   enemies = []
   for (let i = 0; i < num_enemies; i++) {
     let e = new PIXI.Sprite(PIXI.loader.resources["images/enemy.png"].texture);
-    while (isTouchingWalls(e)) {
+    while (isTouchingWalls(e) && Math.max(Math.abs(e.x - player.x), Math.abs(e.y - player.y)) > 40) {
       e.x = Math.floor(Math.random() * 928);
       e.y = Math.floor(Math.random() * 928);
     }
