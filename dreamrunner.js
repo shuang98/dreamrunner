@@ -1,5 +1,9 @@
 /* GAME */
 
+var music = document.getElementById("music"); 
+music.loop = true;
+music.play();
+
 let app = new PIXI.Application({ 
     width: 960, 
     height: 960,                       
@@ -194,6 +198,8 @@ function setupGameOverScene(win) {
   message.x = 960 / 2 - (message.width / 2);
   message.y = 960 / 2;
   gameOverScene.addChild(message);
+  let returnMsg = new PIXI.Text("Press R to return to menu", {...style, fontSize: 32});
+  gameOverScene.addChild(returnMsg);
   gameOverScene.visible = false;
   let returnKey = keyboard("r");
   returnKey.release = ()=>{
